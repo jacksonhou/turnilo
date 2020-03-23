@@ -16,6 +16,7 @@
  */
 
 import { Timezone } from "chronoshift";
+import memoizeOne from "memoize-one";
 import { Dataset, TabulatorOptions } from "plywood";
 import * as React from "react";
 import { Clicker } from "../../../common/models/clicker/clicker";
@@ -60,6 +61,7 @@ import { FunctionSlot } from "../../utils/function-slot/function-slot";
 import * as localStorage from "../../utils/local-storage/local-storage";
 import tabularOptions from "../../utils/tabular-options/tabular-options";
 import { getVisualizationComponent } from "../../visualizations";
+import { CubeContext, CubeContextValue } from "./cube-context";
 import { CubeHeaderBar } from "./cube-header-bar/cube-header-bar";
 import "./cube-view.scss";
 
@@ -536,6 +538,17 @@ export class CubeView extends React.Component<CubeViewProps, CubeViewState> {
     this.globalResizeListener();
   };
 
+  private getCubeContext(): CubeContextValue {
+    const { essence } = this.state;
+    return this.constructContext(essence,  this.clicker);
+  }
+
+  private constructContext = memoizeOne(
+    (essence: Essence, clicker: Clicker) =>
+      ({ essence, clicker }),
+    ([nextEssence, nextClicker]: [Essence, Clicker], [prevEssence, prevClicker]: [Essence, Clicker]) =>
+      nextEssence.equals(prevEssence) && nextClicker === prevClicker);
+
   render() {
     const clicker = this.clicker;
 
@@ -563,101 +576,98 @@ export class CubeView extends React.Component<CubeViewProps, CubeViewState> {
       updatingMaxTime={updatingMaxTime}
     />;
 
-    return <div className="cube-view">
-      <GlobalEventListener resize={this.globalResizeListener} />
-      {headerBar}
-      <div className="container" ref={this.container}>
-        {!layout.factPanel.hidden && <DimensionMeasurePanel
-          style={styles.dimensionMeasurePanel}
-          clicker={clicker}
-          essence={essence}
-          menuStage={menuStage}
-          triggerFilterMenu={this.triggerFilterMenu}
-          appendDirtySeries={this.appendDirtySeries}
-        />}
-        {!this.isSmallDevice() && !layout.factPanel.hidden && <ResizeHandle
-          direction={Direction.LEFT}
-          value={layout.factPanel.width}
-          onResize={this.onFactPanelResize}
-          onResizeEnd={this.onPanelResizeEnd}
-          min={MIN_PANEL_WIDTH}
-          max={MAX_PANEL_WIDTH}
-        >
-          <DragHandle />
-        </ResizeHandle>}
-
-        <div className="center-panel" style={styles.centerPanel}>
-          <div className="center-top-bar">
-            <div className="dimension-panel-toggle"
-                 onClick={this.toggleFactPanel}>
-              <ToggleArrow right={layout.factPanel.hidden} />
-            </div>
-            <div className="filter-split-section">
-              <FilterTile
-                ref={this.filterTile}
-                clicker={clicker}
-                essence={essence}
-                timekeeper={timekeeper}
-                menuStage={visualizationStage}
-              />
-              <SplitTilesRow
-                ref={this.splitTile}
-                clicker={clicker}
-                essence={essence}
-                menuStage={visualizationStage}
-              />
-              <SeriesTilesRow
-                ref={this.seriesTile}
-                clicker={clicker}
-                essence={essence}
-                menuStage={visualizationStage}
-              />
-            </div>
-            <VisSelector clicker={clicker} essence={essence} />
-            <div className="pinboard-toggle"
-                 onClick={this.togglePinboard}>
-              <ToggleArrow right={!layout.pinboard.hidden} />
-            </div>
-          </div>
-          <div
-            className="center-main"
-            onDragEnter={this.dragEnter}
+    return <CubeContext.Provider value={this.getCubeContext()}>
+      <div className="cube-view">
+        <GlobalEventListener resize={this.globalResizeListener} />
+        {headerBar}
+        <div className="container" ref={this.container}>
+          {!layout.factPanel.hidden && <DimensionMeasurePanel
+            style={styles.dimensionMeasurePanel}
+            clicker={clicker}
+            essence={essence}
+            menuStage={menuStage}
+            triggerFilterMenu={this.triggerFilterMenu}
+            appendDirtySeries={this.appendDirtySeries}
+          />}
+          {!this.isSmallDevice() && !layout.factPanel.hidden && <ResizeHandle
+            direction={Direction.LEFT}
+            value={layout.factPanel.width}
+            onResize={this.onFactPanelResize}
+            onResizeEnd={this.onPanelResizeEnd}
+            min={MIN_PANEL_WIDTH}
+            max={MAX_PANEL_WIDTH}
           >
-            <div className="visualization" ref={this.visualization}>{this.visElement()}</div>
-            {this.manualFallback()}
-            {dragOver ? <DropIndicator /> : null}
-            {dragOver ? <div
-              className="drag-mask"
-              onDragOver={this.dragOver}
-              onDragLeave={this.dragLeave}
-              onDragExit={this.dragLeave}
-              onDrop={this.drop}
-            /> : null}
-          </div>
-        </div>
+            <DragHandle />
+          </ResizeHandle>}
 
-        {!this.isSmallDevice() && !layout.pinboard.hidden && <ResizeHandle
-          direction={Direction.RIGHT}
-          value={layout.pinboard.width}
-          onResize={this.onPinboardPanelResize}
-          onResizeEnd={this.onPanelResizeEnd}
-          min={MIN_PANEL_WIDTH}
-          max={MAX_PANEL_WIDTH}
-        >
-          <DragHandle />
-        </ResizeHandle>}
-        {!layout.pinboard.hidden && <PinboardPanel
-          style={styles.pinboardPanel}
-          clicker={clicker}
-          essence={essence}
-          timekeeper={timekeeper}
-        />}
+          <div className="center-panel" style={styles.centerPanel}>
+            <div className="center-top-bar">
+              <div className="dimension-panel-toggle"
+                   onClick={this.toggleFactPanel}>
+                <ToggleArrow right={layout.factPanel.hidden} />
+              </div>
+              <div className="filter-split-section">
+                <FilterTile
+                  ref={this.filterTile}
+                  clicker={clicker}
+                  essence={essence}
+                  timekeeper={timekeeper}
+                  menuStage={visualizationStage}
+                />
+                <SplitTilesRow
+                  ref={this.splitTile}
+                  clicker={clicker}
+                  essence={essence}
+                  menuStage={visualizationStage}
+                />
+                <SeriesTilesRow ref={this.seriesTile} menuStage={visualizationStage} />
+              </div>
+              <VisSelector clicker={clicker} essence={essence} />
+              <div className="pinboard-toggle"
+                   onClick={this.togglePinboard}>
+                <ToggleArrow right={!layout.pinboard.hidden} />
+              </div>
+            </div>
+            <div
+              className="center-main"
+              onDragEnter={this.dragEnter}
+            >
+              <div className="visualization" ref={this.visualization}>{this.visElement()}</div>
+              {this.manualFallback()}
+              {dragOver ? <DropIndicator /> : null}
+              {dragOver ? <div
+                className="drag-mask"
+                onDragOver={this.dragOver}
+                onDragLeave={this.dragLeave}
+                onDragExit={this.dragLeave}
+                onDrop={this.drop}
+              /> : null}
+            </div>
+          </div>
+
+          {!this.isSmallDevice() && !layout.pinboard.hidden && <ResizeHandle
+            direction={Direction.RIGHT}
+            value={layout.pinboard.width}
+            onResize={this.onPinboardPanelResize}
+            onResizeEnd={this.onPanelResizeEnd}
+            min={MIN_PANEL_WIDTH}
+            max={MAX_PANEL_WIDTH}
+          >
+            <DragHandle />
+          </ResizeHandle>}
+          {!layout.pinboard.hidden && <PinboardPanel
+            style={styles.pinboardPanel}
+            clicker={clicker}
+            essence={essence}
+            timekeeper={timekeeper}
+          />}
+        </div>
+        {this.renderDruidQueryModal()}
+        {this.renderRawDataModal()}
+        {this.renderViewDefinitionModal()}
+        {this.renderUrlShortenerModal()}
       </div>
-      {this.renderDruidQueryModal()}
-      {this.renderRawDataModal()}
-      {this.renderViewDefinitionModal()}
-      {this.renderUrlShortenerModal()}
-    </div>;
+    </CubeContext.Provider>;
   }
 
   private calculateStyles() {
