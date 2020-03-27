@@ -17,16 +17,14 @@
 
 import * as React from "react";
 import { Clicker } from "../../../common/models/clicker/clicker";
-import { Colors } from "../../../common/models/colors/colors";
 import { Dimension } from "../../../common/models/dimension/dimension";
-import { Essence, VisStrategy } from "../../../common/models/essence/essence";
+import { Essence } from "../../../common/models/essence/essence";
 import { SeriesSortOn, SortOn } from "../../../common/models/sort-on/sort-on";
-import { SortDirection } from "../../../common/models/sort/sort";
 import { Timekeeper } from "../../../common/models/timekeeper/timekeeper";
 import { mapTruthy } from "../../../common/utils/functional/functional";
 import { STRINGS } from "../../config/constants";
 import { DragManager } from "../../utils/drag-manager/drag-manager";
-import { DimensionTile } from "../dimension-tile/dimension-tile";
+import { createTeleporter } from "../../utils/teleporter/teleporter";
 import { PinboardMeasureTile } from "../pinboard-measure-tile/pinboard-measure-tile";
 import { PinboardTile } from "../pinboard-tile/pinboard-tile";
 import { SvgIcon } from "../svg-icon/svg-icon";
@@ -42,6 +40,10 @@ export interface PinboardPanelProps {
 export interface PinboardPanelState {
   dragOver?: boolean;
 }
+
+const Legend = createTeleporter();
+
+export const LegendSpot = Legend.Source;
 
 export class PinboardPanel extends React.Component<PinboardPanelProps, PinboardPanelState> {
 
@@ -91,96 +93,21 @@ export class PinboardPanel extends React.Component<PinboardPanelProps, PinboardP
     this.setState({ dragOver: false });
   };
 
-  getColorsSortOn(): SortOn {
-    const { essence } = this.props;
-    const { dataCube, splits, colors } = essence;
-    if (colors) {
-      const dimension = dataCube.getDimension(colors.dimension);
-      if (dimension) {
-        const split = splits.findSplitForDimension(dimension);
-        if (split) {
-          return SortOn.fromSort(split.sort, essence);
-        }
-      }
-    }
-    return null;
-  }
-
-  onLegendSortOnSelect = (sortOn: SortOn) => {
-    const { clicker, essence } = this.props;
-    const { dataCube, splits, colors } = essence;
-    if (colors) {
-      const dimension = dataCube.getDimension(colors.dimension);
-      if (dimension) {
-        const split = splits.findSplitForDimension(dimension);
-        if (split) {
-          const sort = split.sort;
-          const direction = sort ? sort.direction : SortDirection.descending;
-          const newSplit = split.changeSort(sortOn.toSort(direction));
-          const newColors = Colors.fromLimit(colors.dimension, 5);
-          clicker.changeSplits(splits.replace(split, newSplit), VisStrategy.UnfairGame, newColors);
-        }
-      }
-    }
-  };
-
   onPinboardSortOnSelect = (sortOn: SortOn) => {
     const { essence: { dataCube } } = this.props;
     const measure = dataCube.getMeasure(sortOn.key);
     this.props.clicker.changePinnedSortMeasure(measure);
   };
 
-  onRemoveLegend = () => {
-    const { clicker, essence } = this.props;
-    const { dataCube, splits, colors } = essence;
-
-    if (colors) {
-      const dimension = dataCube.getDimension(colors.dimension);
-      if (dimension) {
-        const split = splits.findSplitForDimension(dimension);
-        if (split) {
-          clicker.changeSplits(splits.removeSplit(split), VisStrategy.UnfairGame, null);
-        }
-      }
-    }
-  };
-
   render() {
     const { clicker, essence, timekeeper, style } = this.props;
     const { dragOver } = this.state;
-    const { dataCube, pinnedDimensions, colors } = essence;
-
-    let legendMeasureSelector: JSX.Element = null;
-    let legendDimensionTile: JSX.Element = null;
-    let colorDimension = colors ? colors.dimension : null;
-    if (colorDimension) {
-      const dimension = dataCube.getDimension(colorDimension);
-      const colorsSortOn = this.getColorsSortOn();
-      if (dimension && colorsSortOn) {
-        legendMeasureSelector = <PinboardMeasureTile
-          essence={essence}
-          title="Legend"
-          dimension={dimension}
-          sortOn={colorsSortOn}
-          onSelect={this.onLegendSortOnSelect}
-        />;
-
-        legendDimensionTile = <DimensionTile
-          clicker={clicker}
-          essence={essence}
-          timekeeper={timekeeper}
-          dimension={dimension}
-          sortOn={colorsSortOn}
-          colors={colors}
-          onClose={this.onRemoveLegend}
-        />;
-      }
-    }
+    const { dataCube, pinnedDimensions } = essence;
 
     const pinnedSortMeasure = essence.getPinnedSortMeasure();
     const pinnedSortSeries = pinnedSortMeasure && essence.findConcreteSeries(pinnedSortMeasure.name);
     const pinnedSortSortOn = pinnedSortSeries && new SeriesSortOn(pinnedSortSeries);
-    const pinboardtiles = mapTruthy(pinnedDimensions.toArray(), dimensionName => {
+    const pinboardTiles = mapTruthy(pinnedDimensions.toArray(), dimensionName => {
       const dimension = dataCube.getDimension(dimensionName);
       if (!dimension) return null;
 
@@ -195,30 +122,26 @@ export class PinboardPanel extends React.Component<PinboardPanelProps, PinboardP
       />;
     });
 
-    let placeholder: JSX.Element = null;
-    if (!dragOver && !pinboardtiles.length) {
-      placeholder = <div className="placeholder">
-        <SvgIcon svg={require("../../icons/preview-pin.svg")} />
-        <div className="placeholder-message">{STRINGS.pinboardPlaceholder}</div>
-      </div>;
-    }
+    const showPlaceholder = !dragOver && !pinboardTiles.length;
 
     return <div
       className="pinboard-panel"
       onDragEnter={this.dragEnter}
       style={style}
     >
-      {legendMeasureSelector}
-      {legendDimensionTile}
+      <Legend.Target />
       <PinboardMeasureTile
         essence={essence}
         title={STRINGS.pinboard}
         sortOn={pinnedSortSortOn}
         onSelect={this.onPinboardSortOnSelect}
       />
-      {pinboardtiles}
-      {dragOver ? <div className="drop-indicator-tile" /> : null}
-      {placeholder}
+      {pinboardTiles}
+      {dragOver && <div className="drop-indicator-tile" />}
+      {showPlaceholder && <div className="placeholder">
+        <SvgIcon svg={require("../../icons/preview-pin.svg")} />
+        <div className="placeholder-message">{STRINGS.pinboardPlaceholder}</div>
+      </div>}
       {dragOver ? <div
         className="drag-mask"
         onDragOver={this.dragOver}
