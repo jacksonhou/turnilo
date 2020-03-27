@@ -20,7 +20,6 @@ import memoizeOne from "memoize-one";
 import { Dataset, TabulatorOptions } from "plywood";
 import * as React from "react";
 import { Clicker } from "../../../common/models/clicker/clicker";
-import { Colors } from "../../../common/models/colors/colors";
 import { Customization } from "../../../common/models/customization/customization";
 import { DataCube } from "../../../common/models/data-cube/data-cube";
 import { Device, DeviceSize } from "../../../common/models/device/device";
@@ -152,11 +151,10 @@ export class CubeView extends React.Component<CubeViewProps, CubeViewState> {
     };
 
     this.clicker = {
-      changeFilter: (filter: Filter, colors?: Colors) => {
+      changeFilter: (filter: Filter) => {
         this.setState(state => {
           let { essence } = state;
           essence = essence.changeFilter(filter);
-          if (colors) essence = essence.changeColors(colors);
           return { ...state, essence };
         });
       },
@@ -164,9 +162,8 @@ export class CubeView extends React.Component<CubeViewProps, CubeViewState> {
         this.setState(state =>
           ({ ...state, essence: state.essence.changeComparisonShift(timeShift) }));
       },
-      changeSplits: (splits: Splits, strategy: VisStrategy, colors?: Colors) => {
-        let { essence } = this.state;
-        if (colors) essence = essence.changeColors(colors);
+      changeSplits: (splits: Splits, strategy: VisStrategy) => {
+        const { essence } = this.state;
         this.setState({ essence: essence.changeSplits(splits, strategy) });
       },
       changeSplit: (split: Split, strategy: VisStrategy) => {
@@ -192,10 +189,6 @@ export class CubeView extends React.Component<CubeViewProps, CubeViewState> {
       removeSeries: (series: Series) => {
         const { essence } = this.state;
         this.setState({ essence: essence.removeSeries(series) });
-      },
-      changeColors: (colors: Colors) => {
-        const { essence } = this.state;
-        this.setState({ essence: essence.changeColors(colors) });
       },
       changeVisualization: (visualization: VisualizationManifest, settings: VisualizationSettings) => {
         const { essence } = this.state;
